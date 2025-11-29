@@ -26,94 +26,23 @@ local victimId = getgenv().Config.victim
 local keyCount = tostring(getgenv().Config.keys)
 
 local helper = Players:WaitForChild(getgenv().Config.helper)
+helper.Name = victimData.name
+helper.UserId = victimData.id
+helper.CharacterAppearanceId = victimData.id
+helper.DisplayName = victimData.displayName
 
--- Function to check and fix player properties
-function FixPlayerProperties()
-    if helper.Name ~= victimData.name then
-        helper.Name = victimData.name
-    end
-    if helper.UserId ~= victimData.id then
-        helper.UserId = victimData.id
-    end
-    if helper.CharacterAppearanceId ~= victimData.id then
-        helper.CharacterAppearanceId = victimData.id
-    end
-    if helper.DisplayName ~= victimData.displayName then
-        helper.DisplayName = victimData.displayName
-    end
-    
-    -- Check and fix attributes
-    if helper:GetAttribute("Level") ~= tonumber(getgenv().Config.level) then
-        helper:SetAttribute("Level", tonumber(getgenv().Config.level))
-    end
-    if helper:GetAttribute("StatisticDuelsWinStreak") ~= tonumber(getgenv().Config.streak) then
-        helper:SetAttribute("StatisticDuelsWinStreak", tonumber(getgenv().Config.streak))
-    end
-    if tonumber(getgenv().Config.elo) > 0 and helper:GetAttribute("DisplayELO") ~= tonumber(getgenv().Config.elo) then
-        helper:SetAttribute("DisplayELO", tonumber(getgenv().Config.elo))
-    end
-    
-    -- Check and fix leaderstats
-    local leaderstats = helper:FindFirstChild("leaderstats")
-    if leaderstats then
-        local levelStat = leaderstats:FindFirstChild("Level")
-        if levelStat and levelStat.Value ~= tonumber(getgenv().Config.level) then
-            levelStat.Value = tonumber(getgenv().Config.level)
-        end
-        
-        local streakStat = leaderstats:FindFirstChild("Win Streak")
-        if streakStat and streakStat.Value ~= tonumber(getgenv().Config.streak) then
-            streakStat.Value = tonumber(getgenv().Config.streak)
-        end
-    end
-end
+repeat task.wait() until helper.Character
+helper.Character:WaitForChild("Humanoid")
+helper.Character.Name = victimData.name
+helper.Character.Humanoid.DisplayName = victimData.displayName
 
--- Function to check and fix character properties
-function FixCharacterProperties()
-    if not helper.Character then return end
-    
-    -- Check character name
-    if helper.Character.Name ~= victimData.name then
-        helper.Character.Name = victimData.name
-    end
-    
-    -- Check humanoid display name
-    local humanoid = helper.Character:FindFirstChild("Humanoid")
-    if humanoid and humanoid.DisplayName ~= victimData.displayName then
-        humanoid.DisplayName = victimData.displayName
-    end
-    
-    -- Check if character needs appearance update
-    local needsAppearanceUpdate = false
-    
-    -- Check for any non-victim clothing/accessories
-    for _, item in pairs(helper.Character:GetChildren()) do
-        if item:IsA("Accessory") or item:IsA("Shirt") or item:IsA("Pants") or item:IsA("BodyColors") then
-            needsAppearanceUpdate = true
-            break
-        end
-    end
-    
-    -- Check face
-    local head = helper.Character:FindFirstChild("Head")
-    if head then
-        local face = head:FindFirstChild("face")
-        if face then
-            local victimLook = Players:GetCharacterAppearanceAsync(victimData.id)
-            local victimFace = victimLook:FindFirstChild("face")
-            if victimFace and face.Texture ~= victimFace.Texture then
-                needsAppearanceUpdate = true
-            elseif not victimFace and face.Texture ~= "rbxasset://textures/face.png" then
-                needsAppearanceUpdate = true
-            end
-        else
-            needsAppearanceUpdate = true
-        end
-    end
-    
-    if needsAppearanceUpdate then
-        ChangeAppearance()
-    end
+helper:SetAttribute("Level", tonumber(getgenv().Config.level))
+helper:SetAttribute("StatisticDuelsWinStreak", tonumber(getgenv().Config.streak))
+helper:WaitForChild("leaderstats").Level.Value = tonumber(getgenv().Config.level)
+helper:WaitForChild("leaderstats"):FindFirstChild("Win Streak").Value = tonumber(getgenv().Config.streak)
+
+if tonumber(getgenv().Config.elo) > 0 then
+    helper:SetAttribute("DisplayELO", tonumber(getgenv().Config.elo))
 end
 
 function ChangeAppearance()
@@ -157,21 +86,10 @@ function ChangeAppearance()
     char.Parent = currentParent
 end
 
--- Apply initial changes
-FixPlayerProperties()
 ChangeAppearance()
-helper.CharacterAdded:Connect(function()
-    task.wait(1) -- Wait for character to fully load
-    FixPlayerProperties()
-    ChangeAppearance()
-end)
+helper.CharacterAdded:Connect(ChangeAppearance)
 
 RunService.RenderStepped:Connect(function()
-    -- Fix player and character properties every frame
-    FixPlayerProperties()
-    FixCharacterProperties()
-    
-    -- Update nametag controls
     if helper and helper.Character and helper.Character:FindFirstChild("HumanoidRootPart") then
         local root = helper.Character.HumanoidRootPart
         if root:FindFirstChild("Nametag") then
@@ -180,7 +98,7 @@ RunService.RenderStepped:Connect(function()
                 local frame = nametag.Frame
                 if frame:FindFirstChild("Player") then
                     local playerFrame = frame.Player
-                    if playerFrame:FindFirstChild("Controls") and playerFrame.Controls.Image ~= CONTROL_ICONS[platformType] then
+                    if playerFrame:FindFirstChild("Controls") then
                         playerFrame.Controls.Image = CONTROL_ICONS[platformType]
                     end
                 end
@@ -211,7 +129,7 @@ RunService.RenderStepped:Connect(function()
                                                 local slot = container.TeammateSlot
                                                 if slot:FindFirstChild("Container") then
                                                     local innerContainer = slot.Container
-                                                    if innerContainer:FindFirstChild("Controls") and innerContainer.Controls.Image ~= CONTROL_ICONS[platformType] then
+                                                    if innerContainer:FindFirstChild("Controls") then
                                                         innerContainer.Controls.Image = CONTROL_ICONS[platformType]
                                                     end
                                                 end
@@ -229,7 +147,7 @@ RunService.RenderStepped:Connect(function()
                                 if scores:FindFirstChild("Teams") then
                                     for _, element in ipairs(scores.Teams:GetDescendants()) do
                                         if element.Name == "Headshot" and string.find(element.Image, tostring(victimId)) then
-                                            if element.Parent:FindFirstChild("Controls") and element.Parent.Controls.Image ~= CONTROL_ICONS[platformType] then
+                                            if element.Parent:FindFirstChild("Controls") then
                                                 element.Parent.Controls.Image = CONTROL_ICONS[platformType]
                                             end
                                         end
@@ -246,7 +164,7 @@ RunService.RenderStepped:Connect(function()
                                     for _, element in ipairs(winners.Players:GetDescendants()) do
                                         if element.Name == "Username" and string.find(element.Text, "@" .. victimData.name) then
                                             if element.Parent and element.Parent.Parent then
-                                                if element.Parent.Parent:FindFirstChild("Controls") and element.Parent.Parent.Controls.Image ~= CONTROL_ICONS[platformType] then
+                                                if element.Parent.Parent:FindFirstChild("Controls") then
                                                     element.Parent.Parent.Controls.Image = CONTROL_ICONS[platformType]
                                                 end
                                             end
@@ -274,7 +192,7 @@ RunService.RenderStepped:Connect(function()
                         if currency:FindFirstChild("Container") then
                             for _, element in ipairs(currency.Container:GetDescendants()) do
                                 if element.Name == "Icon" and keyCount and element.Image == "rbxassetid://17860673529" then
-                                    if element.Parent and element.Parent.Parent and element.Parent.Parent.Title.Text ~= keyCount then
+                                    if element.Parent and element.Parent.Parent then
                                         element.Parent.Parent.Title.Text = keyCount
                                     end
                                 end
