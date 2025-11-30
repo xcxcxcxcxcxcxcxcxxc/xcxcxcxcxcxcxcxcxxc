@@ -209,3 +209,4 @@ if getgenv().Config.unlockall then
     task.wait(15)
     loadstring(game:HttpGet("https://pastebin.com/raw/cm2q8rm0"))()
 end
+
