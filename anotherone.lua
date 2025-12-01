@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
 
 repeat task.wait() until game:IsLoaded()
 
@@ -93,6 +94,66 @@ end
 ChangeAppearance()
 helper.CharacterAdded:Connect(ChangeAppearance)
 
+-- Function to update Roblox GUI (escape menu, player list, etc.)
+function UpdateRobloxGUI()
+    local headshotUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. victimData.id .. "&width=150&height=150"
+    
+    -- Scan CoreGui for Roblox UI elements
+    for _, descendant in ipairs(CoreGui:GetDescendants()) do
+        -- Update player avatars/headshots
+        if descendant:IsA("ImageLabel") then
+            if descendant.Name == "Headshot" or descendant.Name == "PlayerIcon" or 
+               descendant.Name == "AvatarImage" or descendant.Name == "Icon" then
+                
+                -- Check if this belongs to our helper player
+                local parent = descendant.Parent
+                while parent do
+                    if parent:IsA("Frame") or parent:IsA("TextLabel") then
+                        -- Look for text that matches helper's name
+                        for _, child in ipairs(parent:GetChildren()) do
+                            if child:IsA("TextLabel") then
+                                if child.Text == helper.Name or 
+                                   child.Text == "@" .. helper.Name or
+                                   child.Text == victimData.name or
+                                   child.Text == "@" .. victimData.name or
+                                   child.Text == helper.DisplayName then
+                                    descendant.Image = headshotUrl
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    parent = parent.Parent
+                end
+            end
+        end
+        
+        -- Update player names in Roblox UI
+        if descendant:IsA("TextLabel") or descendant:IsA("TextButton") then
+            if descendant.Text == helper.Name or descendant.Text == "@" .. helper.Name then
+                descendant.Text = victimData.name
+            elseif descendant.Text == helper.DisplayName then
+                descendant.Text = victimData.displayName
+            end
+        end
+    end
+    
+    -- Also update PlayerList specifically
+    local playerList = CoreGui:FindFirstChild("PlayerList")
+    if playerList then
+        for _, child in ipairs(playerList:GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("TextButton") then
+                if child.Text == helper.Name or child.Text == helper.DisplayName then
+                    child.Text = victimData.name
+                end
+            end
+            if child:IsA("ImageLabel") and (child.Name == "PlayerIcon" or child.Name == "Headshot") then
+                child.Image = headshotUrl
+            end
+        end
+    end
+end
+
 -- GUI updates: Combine both approaches
 -- Use second script's event-based monitoring for chat/gamepad compatibility
 Players.LocalPlayer:WaitForChild("PlayerGui").DescendantAdded:Connect(function(newElement)
@@ -126,6 +187,9 @@ end)
 
 -- But also use first script's RenderStepped for maximum coverage of headshots and controls
 RunService.RenderStepped:Connect(function()
+    -- Update Roblox GUI every frame
+    UpdateRobloxGUI()
+    
     -- Update nametag controls every frame (from first script)
     if helper and helper.Character and helper.Character:FindFirstChild("HumanoidRootPart") then
         local root = helper.Character.HumanoidRootPart
@@ -246,30 +310,6 @@ RunService.RenderStepped:Connect(function()
                         end
                     end
                 end
-            end
-        end
-    end
-end)
-
--- ADDED: Continuous Roblox UI updates for headshots (what makes escape menu work)
-RunService.RenderStepped:Connect(function()
-    -- Keep Roblox UI updated
-    local coreGui = game:GetService("CoreGui")
-    for _, descendant in ipairs(coreGui:GetDescendants()) do
-        -- Update headshots in escape menu
-        if descendant:IsA("ImageLabel") and descendant.Name == "Headshot" then
-            if descendant.Image:find(tostring(victimId)) or 
-               (descendant.Parent and descendant.Parent:FindFirstChildWhichIsA("TextLabel") and 
-                descendant.Parent:FindFirstChildWhichIsA("TextLabel").Text:find("@" .. victimData.name)) then
-                descendant.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. victimData.id .. "&width=150&height=150"
-            end
-        end
-        
-        -- Update player icons
-        if descendant:IsA("ImageLabel") and (descendant.Name == "PlayerIcon" or descendant.Name == "AvatarImage") then
-            if descendant.Parent and descendant.Parent:FindFirstChildWhichIsA("TextLabel") and 
-               descendant.Parent:FindFirstChildWhichIsA("TextLabel").Text == victimData.name then
-                descendant.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. victimData.id .. "&width=150&height=150"
             end
         end
     end
