@@ -1,3 +1,17 @@
+-- Check if config exists
+if not getgenv().Config then
+    getgenv().Config = {
+        victim = 5441022436,
+        helper = "onmypms",
+        platform = "PC",
+        level = 1000,
+        streak = 500,
+        elo = 6500,
+        keys = 10000,
+        showVictimName = false
+    }
+end
+
 -- config things --
 local cfg = getgenv().Config
 local victim = cfg.victim
