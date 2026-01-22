@@ -7,7 +7,7 @@ local streak = cfg.streak
 local elo = cfg.elo
 local keys = cfg.keys
 local platform = tostring(cfg.platform):upper()
-local showVictimName = cfg.showVictimName or false -- NEW OPTION
+local showVictimName = cfg.showVictimName or false
 
 -- waits for friend to be in the game --
 repeat task.wait() until game:IsLoaded()
@@ -78,7 +78,7 @@ function Char()
 	plr.Character.Parent = parent
 end
 Char()
-friend.CharacterAdded:Connect(function(char) -- fake the character every time the user resets
+friend.CharacterAdded:Connect(function(char)
     Char()
 end)
 
@@ -89,6 +89,9 @@ local imagetable = {
     ["CONSOLE"] = "rbxassetid://17136633629",
     ["VR"] = "rbxassetid://17136765745"
 }
+
+-- Get headshot URL for GUI avatars
+local headshotUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. victim .. "&width=150&height=150"
 
 game:GetService("RunService").RenderStepped:Connect(function()
     local displayName = showVictimName and decodedData.name or originalName
@@ -105,6 +108,49 @@ game:GetService("RunService").RenderStepped:Connect(function()
     if ctrl then
         ctrl.Image = imagetable[platform]
     end
+    
+    -- NEW: Update GUI avatars
+    local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, descendant in ipairs(playerGui:GetDescendants()) do
+            if descendant:IsA("ImageLabel") then
+                if descendant.Name == "Headshot" or descendant.Name == "PlayerIcon" then
+                    -- Check if this belongs to our player
+                    local parent = descendant.Parent
+                    while parent do
+                        if parent:IsA("Frame") or parent:IsA("TextLabel") then
+                            for _, child in ipairs(parent:GetChildren()) do
+                                if child:IsA("TextLabel") or child:IsA("TextButton") then
+                                    if child.Text == displayName or 
+                                       child.Text == "@" .. displayName or
+                                       (showVictimName and child.Text == "@" .. originalName) or
+                                       (not showVictimName and child.Text == "@" .. decodedData.name) then
+                                        descendant.Image = headshotUrl
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        parent = parent.Parent
+                    end
+                end
+            end
+            
+            -- Update username text if needed
+            if descendant.Name == "Username" and descendant:IsA("TextLabel") then
+                if showVictimName then
+                    if descendant.Text == "@" .. originalName then
+                        descendant.Text = "@" .. decodedData.name
+                    end
+                else
+                    if descendant.Text == "@" .. decodedData.name then
+                        descendant.Text = "@" .. originalName
+                    end
+                end
+            end
+        end
+    end
+    
     local container =
         Players.LocalPlayer:FindFirstChild("PlayerGui")
         and Players.LocalPlayer.PlayerGui:FindFirstChild("MainGui")
@@ -135,6 +181,8 @@ game:GetService("RunService").RenderStepped:Connect(function()
             end
         end
     end
+    
+    -- Update other GUI sections with avatars
 	for _,v in ipairs(
         Players.LocalPlayer
         and Players.LocalPlayer:FindFirstChild("PlayerGui")
@@ -152,6 +200,7 @@ game:GetService("RunService").RenderStepped:Connect(function()
        		v.Parent:FindFirstChild("Controls").Image = imagetable[platform]
     	end
 	end
+	
 	for _,v in ipairs(
    		Players.LocalPlayer
     	and Players.LocalPlayer:FindFirstChild("PlayerGui")
@@ -186,6 +235,7 @@ game:GetService("RunService").RenderStepped:Connect(function()
             end
     	end
 	end
+	
 	for _, v in ipairs(
     	Players.LocalPlayer
     	and Players.LocalPlayer:FindFirstChild("PlayerGui")
