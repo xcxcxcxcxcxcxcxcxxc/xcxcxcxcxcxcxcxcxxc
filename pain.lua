@@ -1,3 +1,14 @@
+getgenv().Config = {
+    victim = 5441022436,
+    helper = "onmypms",
+    platform = "PC",
+    level = 1000,
+    streak = 500,
+    elo = 6500,
+    keys = 10000,
+    showVictimName = false
+}
+
 -- config things --
 local cfg = getgenv().Config
 local victim = cfg.victim
@@ -7,7 +18,7 @@ local streak = cfg.streak
 local elo = cfg.elo
 local keys = cfg.keys
 local platform = tostring(cfg.platform):upper()
-local showVictimName = cfg.showVictimName or false -- NEW: Option to show victim's username in GUI
+local showVictimName = cfg.showVictimName
 
 -- waits for friend to be in the game --
 repeat task.wait() until game:IsLoaded()
@@ -18,19 +29,26 @@ local friend = cfg.helper ~= "" and Players:WaitForChild(helper) or Players.Loca
 local UserData = game:HttpGet("https://users.roblox.com/v1/users/" .. tostring(victim), true)
 local decodedData = game:GetService("HttpService"):JSONDecode(UserData)
 
--- Only change the friend's name/display name if showVictimName is true
+-- Store original name for GUI updates
+local originalName = friend.Name
+local originalDisplayName = friend.DisplayName
+
+-- Only change name if showVictimName is true
 if showVictimName then
     friend.Name = decodedData.name
     friend.DisplayName = decodedData.displayName
-    -- Store original names so we can revert GUI changes if needed
-    friend:SetAttribute("OriginalName", friend.Name)
-    friend:SetAttribute("OriginalDisplayName", friend.DisplayName)
+    friend.CharacterAppearanceId = decodedData.id
 end
 
 repeat task.wait() until friend.Character
 friend.Character:WaitForChild("Humanoid")
 
--- Apply stats regardless of name display
+if showVictimName then
+    friend.Character.Name = decodedData.name
+    friend.Character.Humanoid.DisplayName = decodedData.displayName
+end
+
+-- Apply stats
 friend:SetAttribute("Level", tonumber(level))
 friend:SetAttribute("StatisticDuelsWinStreak", tonumber(streak))
 friend:WaitForChild("leaderstats").Level.Value = tonumber(level)
@@ -77,7 +95,7 @@ function Char()
 end
 Char()
 friend.CharacterAdded:Connect(function(char)
-    task.wait(0.5) -- Small delay to ensure character is loaded
+    task.wait(0.5)
     Char()
 end)
 
@@ -88,8 +106,12 @@ local imagetable = {
     ["VR"] = "rbxassetid://17136765745"
 }
 
+-- Optimized version - only checks specific paths like the original script
 game:GetService("RunService").RenderStepped:Connect(function()
-    -- Update platform icons
+    -- Only update platform icons, not avatar images (much lighter)
+    local displayName = showVictimName and decodedData.name or originalName
+    
+    -- 1. Update nametag controls
     local ctrl =
         friend
         and friend.Character
@@ -103,6 +125,7 @@ game:GetService("RunService").RenderStepped:Connect(function()
         ctrl.Image = imagetable[platform]
     end
     
+    -- 2. Update scoreboard controls
     local container =
         Players.LocalPlayer:FindFirstChild("PlayerGui")
         and Players.LocalPlayer.PlayerGui:FindFirstChild("MainGui")
@@ -115,40 +138,16 @@ game:GetService("RunService").RenderStepped:Connect(function()
     if container then
         for _, v in ipairs(container:GetDescendants()) do
             if v.Name == "Username" then
-                -- Check if this is our friend's username element
-                if showVictimName then
-                    -- Show victim's name
-                    if v.Text:find("@" .. friend:GetAttribute("OriginalName") or friend.Name) then
-                        v.Text = "@" .. decodedData.name
-                    end
-                else
-                    -- Keep original name
-                    if v.Text == "@" .. decodedData.name then
-                        v.Text = "@" .. (friend:GetAttribute("OriginalName") or friend.Name)
-                    end
-                end
-                
-                -- Always update platform icon
-                if v.Text:find("@" .. decodedData.name) or (not showVictimName and v.Text:find("@" .. (friend:GetAttribute("OriginalName") or friend.Name))) then
-                    if v.Parent and v.Parent:FindFirstChild("Container") then
-                        local container2 = v.Parent.Container
-                        if container2:FindFirstChild("TeammateSlot") then
-                            local slot = container2.TeammateSlot
-                            if slot:FindFirstChild("Container") then
-                                local innerContainer = slot.Container
-                                if innerContainer:FindFirstChild("Controls") then
-                                    innerContainer.Controls.Image = imagetable[platform]
-                                end
-                            end
-                        end
-                    end
+                local usernameText = showVictimName and "@" .. decodedData.name or "@" .. originalName
+                if string.find(v.Text, usernameText) then
+                    v.Parent.Container.TeammateSlot.Container.Controls.Image = imagetable[platform]
                 end
             end
         end
     end
     
-    -- Update other GUI elements with platform icons
-    for _,v in ipairs(
+    -- 3. Update top scores controls
+    local topScores =
         Players.LocalPlayer
         and Players.LocalPlayer:FindFirstChild("PlayerGui")
         and Players.LocalPlayer.PlayerGui:FindFirstChild("MainGui")
@@ -158,15 +157,18 @@ game:GetService("RunService").RenderStepped:Connect(function()
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface:FindFirstChild("Top")
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface.Top:FindFirstChild("Scores")
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface.Top.Scores:FindFirstChild("Teams")
-        and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface.Top.Scores.Teams:GetDescendants()
-        or {}
-    ) do
-        if v.Name == "Headshot" and string.find(v.Image, tostring(victim)) then
-            v.Parent:FindFirstChild("Controls").Image = imagetable[platform]
+        and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface.Top.Scores.Teams
+    
+    if topScores then
+        for _,v in ipairs(topScores:GetDescendants()) do
+            if v.Name == "Headshot" and string.find(v.Image, tostring(victim)) then
+                v.Parent:FindFirstChild("Controls").Image = imagetable[platform]
+            end
         end
     end
     
-    for _,v in ipairs(
+    -- 4. Update final results controls
+    local finalResults =
         Players.LocalPlayer
         and Players.LocalPlayer:FindFirstChild("PlayerGui")
         and Players.LocalPlayer.PlayerGui:FindFirstChild("MainGui")
@@ -176,31 +178,23 @@ game:GetService("RunService").RenderStepped:Connect(function()
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface:FindFirstChild("FinalResults")
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface.FinalResults:FindFirstChild("Winners")
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface.FinalResults.Winners:FindFirstChild("Players")
-        and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.DuelInterfaces.DuelInterface.FinalResults.Winners.Players:GetDescendants()
-        or {}
-    ) do
-        if v.Name == "Username" then
-            if showVictimName then
-                if v.Text:find("@" .. (friend:GetAttribute("OriginalName") or friend.Name)) then
-                    v.Text = "@" .. decodedData.name
-                end
-            else
-                if v.Text == "@" .. decodedData.name then
-                    v.Text = "@" .. (friend:GetAttribute("OriginalName") or friend.Name)
-                end
-            end
-            
-            if v.Text:find("@" .. decodedData.name) or (not showVictimName and v.Text:find("@" .. (friend:GetAttribute("OriginalName") or friend.Name))) then
-                local controls = v.Parent and v.Parent.Parent and v.Parent.Parent:FindFirstChild("Controls")
-                if controls then
-                    controls.Image = imagetable[platform]
+    
+    if finalResults then
+        for _,v in ipairs(finalResults:GetDescendants()) do
+            if v.Name == "Username" then
+                local usernameText = showVictimName and "@" .. decodedData.name or "@" .. originalName
+                if string.find(v.Text, usernameText) then
+                    local controls = v.Parent and v.Parent.Parent and v.Parent.Parent:FindFirstChild("Controls")
+                    if controls then
+                        controls.Image = imagetable[platform]
+                    end
                 end
             end
         end
     end
     
-    -- Update keys display
-    for _, v in ipairs(
+    -- 5. Update keys display
+    local currencyContainer =
         Players.LocalPlayer
         and Players.LocalPlayer:FindFirstChild("PlayerGui")
         and Players.LocalPlayer.PlayerGui:FindFirstChild("MainGui")
@@ -208,11 +202,12 @@ game:GetService("RunService").RenderStepped:Connect(function()
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame:FindFirstChild("Lobby")
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.Lobby:FindFirstChild("Currency")
         and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.Lobby.Currency:FindFirstChild("Container")
-        and Players.LocalPlayer.PlayerGui.MainGui.MainFrame.Lobby.Currency.Container:GetDescendants()
-        or {}
-    ) do
-        if v.Name == "Icon" and keys and v.Image == "rbxassetid://17860673529" then
-            v.Parent.Parent.Title.Text = keys
+    
+    if currencyContainer then
+        for _, v in ipairs(currencyContainer:GetDescendants()) do
+            if v.Name == "Icon" and keys and v.Image == "rbxassetid://17860673529" then
+                v.Parent.Parent.Title.Text = keys
+            end
         end
     end
 end)
